@@ -1,6 +1,6 @@
 open import Function                              using (_∘_)
 open import Category.Monad                        using (module RawMonad)
-open import Data.Fin                              using (Fin; suc; zero)
+open import Data.Fin                              using (Fin; suc; zero; toℕ)
 open import Data.Fin.Properties                   renaming (_≟_ to _≟-Fin_)
 open import Data.List    as List                  using (List; _∷_; [])
 open import Data.List.Properties                  renaming (∷-injective to ∷-inj)
@@ -10,9 +10,12 @@ open import Data.Product as Prod                  using (∃; _×_; _,_; proj₁
 open import Relation.Nullary                      using (Dec; yes; no)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; cong₂)
 
+open import Auto.Show using (Show; show)
+open import Data.String using (primStringAppend)
+
 module Unification
-  (Name    : Set) (_≟-Name_    : (x y : Name)    → Dec (x ≡ y))
-  (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y))
+  (Name    : Set) (_≟-Name_    : (x y : Name)    → Dec (x ≡ y)) (ShowName : Show Name)
+  (Literal : Set) (_≟-Literal_ : (x y : Literal) → Dec (x ≡ y)) (ShowLit : Show Literal)
   where
 
   open RawMonad {{...}} using (_<$>_; _>>=_; return)
@@ -26,6 +29,14 @@ module Unification
     con : (s : Name) (ts : List (Term n)) → Term n
     lit : (l : Literal) → Term n
 --  ext : (x : Fin (suc n)) (t : Term (suc n)) → Term n
+
+  instance
+    {-# TERMINATING #-}
+    showTerm : {n : ℕ} → Show (Term n)
+    show ⦃ showTerm ⦄ (var x) = primStringAppend "var " (show (toℕ x))
+    show ⦃ showTerm ⦄ (con s ts) = primStringAppend "con " (primStringAppend (show ⦃ ShowName ⦄ s) (primStringAppend "(" (primStringAppend (show ts) ")")))
+    show ⦃ showTerm ⦄ (lit l) = primStringAppend "lit " (show ⦃ ShowLit ⦄ l)
+
 
   var-inj : ∀ {n x₁ x₂} → var {n} x₁ ≡ var {n} x₂ → x₁ ≡ x₂
   var-inj refl = refl

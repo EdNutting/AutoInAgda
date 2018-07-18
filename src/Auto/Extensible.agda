@@ -10,8 +10,9 @@ module Auto.Extensible (instHintDB : IsHintDB) where
 
 open IsHintDB     instHintDB public
 open PsExtensible instHintDB public
-open Auto.Core               public using (dfs; bfs; Exception; throw; searchSpaceExhausted; unsupportedSyntax)
+open Auto.Core               public using (dfs; bfs; Exception; throw)
 
+open import Auto.Show
 
 auto : Strategy → ℕ → HintDB → Term → TC Term
 auto search depth db type
@@ -19,7 +20,7 @@ auto search depth db type
 ... | inj₁ msg = returnTC (quoteError msg)
 ... | inj₂ ((n , g) , args)
   with search (suc depth) (solve g (fromRules args ∙ db))
-... | []      = returnTC (quoteError searchSpaceExhausted)
+... | []      = returnTC (quoteError searchSpaceExhausted) -- returnTC (quoteError (showMessage (show g)))
 ... | (p ∷ _) = bindTC (reify p) (λ rp → returnTC (intros rp))
   where
     intros : Term → Term

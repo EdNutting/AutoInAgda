@@ -14,6 +14,11 @@ open import Relation.Nullary.Decidable using (map′)
 open import Relation.Binary            using (module DecTotalOrder)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym)
 open import Reflection renaming (Term to AgTerm; _≟_ to _≟-AgTerm_)
+open import Data.String using (String; primStringAppend)
+
+open import Auto.Show using (Show; show; ShowLit)
+open import Data.String using (primStringAppend)
+open import Agda.Builtin.Int using (primShowInteger)
 
 module Auto.Core where
 
@@ -29,7 +34,9 @@ module Auto.Core where
   -- called.
   data Message : Set where
     searchSpaceExhausted : Message
-    unsupportedSyntax    : Message
+    showTermMessage      : AgTerm → Message
+    showMessage          : String → Message
+    unsupportedSyntax    : AgTerm → Message
 
 
   -- define our own instance of the error functor based on the either
@@ -43,6 +50,10 @@ module Auto.Core where
     f ⟨$⟩ inj₂ y = inj₂ (f y)
 
 
+  instance
+    Showℤ : Show ℤ
+    show ⦃ Showℤ ⦄ = primShowInteger
+
   -- define term names for the term language we'll be using for proof
   -- search; we use standard Agda names, together with term-variables
   -- and Agda implications/function types.
@@ -50,6 +61,12 @@ module Auto.Core where
     name   : (n : Name) → TermName
     var    : (i : ℤ)    → TermName
     impl   : TermName
+
+  instance
+    ShowTermName : Show TermName
+    show ⦃ ShowTermName ⦄ (name n) = (show n)
+    show ⦃ ShowTermName ⦄ (var i) = primStringAppend "var " (show i)
+    show ⦃ ShowTermName ⦄ impl = "impl"
 
   tname-injective : ∀ {x y} → TermName.name x ≡ TermName.name y → x ≡ y
   tname-injective refl = refl
@@ -78,6 +95,11 @@ module Auto.Core where
     name  : Name → RuleName
     var   : ℕ    → RuleName
 
+  instance
+    ShowRuleName : Show RuleName
+    show ⦃ ShowRuleName ⦄ (name x) = show x
+    show ⦃ ShowRuleName ⦄ (var x) = show x
+
   name-injective : ∀ {x y} → RuleName.name x ≡ name y → x ≡ y
   name-injective refl = refl
 
@@ -91,7 +113,7 @@ module Auto.Core where
   var  x ≟-RuleName var  y = map′ (cong var) rvar-injective (x Nat.≟ y)
 
   -- now we can load the definitions from proof search
-  open import ProofSearch RuleName TermName _≟-TermName_ Literal _≟-Lit_
+  open import ProofSearch RuleName ShowRuleName TermName _≟-TermName_ ShowTermName Literal _≟-Lit_ ShowLit
     as PS public renaming (Term to PsTerm; module Extensible to PsExtensible)
 
   -- next up, converting the terms returned by Agda's reflection
@@ -149,11 +171,13 @@ module Auto.Core where
   convertChildren :
     ConvertVar → ℕ → List (Arg AgTerm) → Error (∃[ n ] List (PsTerm n))
 
+--  convert cv d t = inj₁ (unsupportedSyntax t)
+
 
   convert cv d (lit (nat n)) = inj₂ (0 , convertℕ n)
   convert cv d (lit l)       = inj₂ (0 , lit l)
   convert cv d (var i [])    = inj₂ (cv d i)
-  convert cv d (var i args)  = inj₁ unsupportedSyntax
+  convert cv d t@(var i args) = inj₁ (unsupportedSyntax t)
   convert cv d (con c args)  = fromDefOrCon c ⟨$⟩ convertChildren cv d args
   convert cv d (def f args)  = fromDefOrCon f ⟨$⟩ convertChildren cv d args
   convert cv d (pi (arg (arg-info visible _) t₁) (abs _ t₂)) with convert cv d t₁ | convert cv (suc d) t₂
@@ -163,11 +187,13 @@ module Auto.Core where
     with match p₁ p₂
   ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
   convert cv d (pi (arg _ _) (abs _ t₂)) = convert cv (suc d) t₂
-  convert cv d (lam _ _)     = inj₁ unsupportedSyntax
-  convert cv d (pat-lam _ _) = inj₁ unsupportedSyntax
-  convert cv d (sort _)      = inj₁ unsupportedSyntax
-  convert cv d unknown       = inj₁ unsupportedSyntax
-  convert cv d (meta x args) = inj₁ unsupportedSyntax
+  convert cv d t@(lam _ _)     = inj₁ (unsupportedSyntax t)
+  convert cv d t@(pat-lam _ _) = inj₁ (unsupportedSyntax t)
+  convert cv d t@(sort _)      = inj₁ (unsupportedSyntax t)
+  convert cv d t@(unknown)     = inj₁ (unsupportedSyntax t)
+  convert cv d t@(meta x args) = inj₁ (unsupportedSyntax t)
+
+  
 
 
   convertChildren cv d [] = inj₂ (0 , [])
@@ -264,9 +290,20 @@ module Auto.Core where
   -- data-type `Exception` which is used to unquote error messages to
   -- the type-level so that `auto` can generate descriptive type-errors.
 
-  data Exception : Message → Set where
-    throw : (msg : Message) → Exception msg
+  data Exception : String → Set where
+    throw : (msg : String) → Exception msg
+
+  open import Auto.Show
+
+  throwWithMessage : String → AgTerm
+  throwWithMessage msg = con (quote throw) (arg (arg-info visible relevant) (lit (string msg)) ∷ [])
+
+  throwTermMessage : String → AgTerm → AgTerm
+  throwTermMessage s t = throwWithMessage (primStringAppend s (show ⦃ ShowTerm ⦄ t))
+
 
   quoteError : Message → AgTerm
-  quoteError (searchSpaceExhausted) = quoteTerm (throw searchSpaceExhausted)
-  quoteError (unsupportedSyntax)    = quoteTerm (throw unsupportedSyntax)
+  quoteError (searchSpaceExhausted) = quoteTerm (throw "searchSpaceExhausted")
+  quoteError (unsupportedSyntax t) = throwTermMessage "Unsupported syntax caused by: " t
+  quoteError (showTermMessage t) = throwTermMessage "Showing term. " t
+  quoteError (showMessage s) = throwWithMessage s

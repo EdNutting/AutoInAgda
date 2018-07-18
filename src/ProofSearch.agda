@@ -14,14 +14,16 @@ open import Relation.Nullary                      using (Dec; yes; no)
 open import Relation.Binary                       using (module DecTotalOrder)
 open import Relation.Binary.PropositionalEquality using (_≡_; refl; sym; trans; cong; subst)
 
+open import Auto.Show using (Show; show)
+open import Data.String using (String) renaming (primStringAppend to _⊹⊹_)
 
 module ProofSearch
-  (RuleName : Set)
-  (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y))
-  (Literal  : Set) (_≟-Literal_  : (x y : Literal)  → Dec (x ≡ y))
+  (RuleName : Set) (ShowRuleName : Show RuleName)
+  (TermName : Set) (_≟-TermName_ : (x y : TermName) → Dec (x ≡ y)) (ShowTermName : Show TermName)
+  (Literal  : Set) (_≟-Literal_  : (x y : Literal)  → Dec (x ≡ y)) (ShowLit : Show Literal)
   where
 
-  open import Unification TermName _≟-TermName_ Literal _≟-Literal_ public hiding (_++_)
+  open import Unification TermName _≟-TermName_ ShowTermName Literal _≟-Literal_ ShowLit public hiding (_++_)
 
 
   ----------------------------------------------------------------------------
@@ -48,6 +50,13 @@ module ProofSearch
   Rules : Set
   Rules = List (∃ Rule)
 
+  instance
+    ShowRule : {n : ℕ} → Show (Rule n)
+    show ⦃ ShowRule ⦄ (rule name conclusion premises) = "rule " ⊹⊹ ((show ⦃ ShowRuleName ⦄ name) ⊹⊹ ((" conclusion:(" ⊹⊹ ((show conclusion) ⊹⊹ (") premises: (" ⊹⊹ ((show premises) ⊹⊹ ")"))))))
+
+  instance
+    Show∃Rule : Show (∃ Rule)
+    show ⦃ Show∃Rule ⦄ (proj₁ , proj₂) = "∃ " ⊹⊹ ((show proj₁) ⊹⊹ (" " ⊹⊹ (show proj₂)))
 
   -- compute the arity of a rule
   arity : ∀ {n} (r : Rule n) → ℕ
@@ -146,6 +155,7 @@ module ProofSearch
     field
       HintDB   : Set
       Hint     : ℕ → Set
+      showHint : {n : ℕ} → Show (Hint n)
 
     Hints : Set
     Hints = List (∃ Hint)
@@ -162,6 +172,14 @@ module ProofSearch
     fromRules []             = ε
     fromRules ((k , r) ∷ rs) = return r ∙ fromRules rs
 
+    instance
+      Show∃Hint : Show (∃ Hint)
+      show ⦃ Show∃Hint ⦄ (proj₁ , proj₂) = ((show proj₁) ⊹⊹ (" " ⊹⊹ (show ⦃ showHint ⦄ proj₂)))
+
+    instance
+      ShowHintDB : Show HintDB
+      show ⦃ ShowHintDB ⦄ db = show (getHints db)
+
 
   ----------------------------------------------------------------------------
   -- * define simple hint databases                                       * --
@@ -171,6 +189,7 @@ module ProofSearch
   simpleHintDB = record
     { HintDB   = Rules
     ; Hint     = Rule
+    ; showHint = ShowRule
     ; getHints = id
     ; getRule  = id
     ; getTr    = const id
