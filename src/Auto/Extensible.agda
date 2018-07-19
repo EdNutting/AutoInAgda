@@ -10,7 +10,7 @@ module Auto.Extensible (instHintDB : IsHintDB) where
 
 open IsHintDB     instHintDB public
 open PsExtensible instHintDB public
-open Auto.Core               public using (dfs; bfs; Exception; throw)
+open Auto.Core               public using (dfs; {-bfs;-} Exception; throw)
 
 open import Auto.Show
 
@@ -20,8 +20,10 @@ auto search depth db type
 ... | inj₁ msg = returnTC (quoteError msg)
 ... | inj₂ ((n , g) , args)
   with search (suc depth) (solve g (fromRules args ∙ db))
-... | []      = returnTC (quoteError searchSpaceExhausted) -- returnTC (quoteError (showMessage (show g)))
-... | (p ∷ _) = bindTC (reify p) (λ rp → returnTC (intros rp))
+... | (_ , [])       = returnTC (quoteError searchSpaceExhausted)
+... | (_ , (p ∷ _)) = bindTC (reify p) (λ rp → returnTC (intros rp))
+--... | (s , [])       = reifyError (primStringAppend "Exhausted after:\n" s)
+--... | (s , (p ∷ _)) = reifyError (primStringAppend "\nFound\n" (primStringAppend (show p) (primStringAppend "\nby\n" s)))
   where
     intros : Term → Term
     intros = introsAcc (length args)

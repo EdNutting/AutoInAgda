@@ -16,7 +16,7 @@ open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong; sym)
 open import Reflection renaming (Term to AgTerm; _≟_ to _≟-AgTerm_)
 open import Data.String using (String; primStringAppend)
 
-open import Auto.Show using (Show; show; ShowLit)
+open import Auto.Show using (Show; show; ShowLit; showGoal)
 open import Data.String using (primStringAppend)
 open import Agda.Builtin.Int using (primShowInteger)
 
@@ -97,8 +97,8 @@ module Auto.Core where
 
   instance
     ShowRuleName : Show RuleName
-    show ⦃ ShowRuleName ⦄ (name x) = show x
-    show ⦃ ShowRuleName ⦄ (var x) = show x
+    show ⦃ ShowRuleName ⦄ (name x) = primStringAppend "name " (show x)
+    show ⦃ ShowRuleName ⦄ (var x) = primStringAppend "var " (show x)
 
   name-injective : ∀ {x y} → RuleName.name x ≡ name y → x ≡ y
   name-injective refl = refl
@@ -259,22 +259,28 @@ module Auto.Core where
 
 
 
+  quoteError : Message → AgTerm
+  
   -- function which reifies untyped proof terms (from the
   -- `ProofSearch` module) to untyped Agda terms.
 
 
+
   reify : Proof → TC AgTerm
   reifyChildren : List Proof → TC (List (Arg AgTerm))
+  
+  reifyError : String → TC AgTerm
+  reifyError s = bindTC (showGoal "" (quoteError (showMessage s))) λ _ → returnTC unknown
 
   reify (con (var i) ps) = returnTC ((var i []))
   reify (con (name n) ps) =
     bindTC (getDefinition n) (λ
       { (function x) → bindTC (reifyChildren ps) (λ rc → returnTC (def n rc))
-      ; (data-type pars cs) →  bindTC (reifyChildren ps) ((λ rc → returnTC (con n rc)))
-      ; (record′ c _) → returnTC unknown
-      ; (constructor′ d ) → returnTC unknown
-      ; axiom → returnTC unknown
-      ; primitive′ → returnTC unknown} )
+      ; (data-type pars cs) →  bindTC (reifyChildren ps) (λ rc → returnTC (con n rc))
+      ; (record′ c _) → reifyError "Can't reify record."
+      ; (constructor′ d ) → bindTC (reifyChildren ps) (λ rc → returnTC (con n rc))
+      ; axiom → reifyError "Can't reify axiom."
+      ; primitive′ → reifyError "Can't reify primitive."})
 
 
   reifyChildren [] = returnTC []
@@ -302,7 +308,6 @@ module Auto.Core where
   throwTermMessage s t = throwWithMessage (primStringAppend s (show ⦃ ShowTerm ⦄ t))
 
 
-  quoteError : Message → AgTerm
   quoteError (searchSpaceExhausted) = quoteTerm (throw "searchSpaceExhausted")
   quoteError (unsupportedSyntax t) = throwTermMessage "Unsupported syntax caused by: " t
   quoteError (showTermMessage t) = throwTermMessage "Showing term. " t

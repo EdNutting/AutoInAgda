@@ -11,11 +11,14 @@ module Auto where
 
   open import Auto.Extensible simpleHintDB public renaming (auto to auto')
   open import Reflection
+  open import Auto.Show
 
   auto : ℕ → TC HintDB → Term → TC ⊤
   auto depth dbTC hole = bindTC dbTC λ db →
                          bindTC (inferType hole) λ goal →
+                         --bindTC (showGoal "Goal:" goal) λ _ →
                          bindTC (auto' (dfs) depth db goal) λ result →
+                         --bindTC (showGoal "Result:" result) λ _ →
                          unify hole result
 
   macro

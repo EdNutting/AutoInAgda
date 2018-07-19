@@ -208,15 +208,20 @@ module ProofSearch
 
   -- search trees
   data SearchTree (A : Set) : Set where
-    leaf : A → SearchTree A
-    node : List (∞ (SearchTree A)) → SearchTree A
+    leaf : String → A → SearchTree A
+    node : String → List (∞ (SearchTree A)) → SearchTree A
 
   -- representation of a failed branch
   fail : ∀ {A} → SearchTree A
-  fail = node []
+  fail = node "fail" []
 
   data Proof : Set where
      con : (name : RuleName) (args : List Proof) → Proof
+
+  instance
+    {-# TERMINATING #-}
+    ShowProof : Show Proof
+    show ⦃ ShowProof ⦄ (con name args) = "con " ⊹⊹ ((show ⦃ ShowRuleName ⦄ name) ⊹⊹ (" " ⊹⊹ (show args)))
 
   -- representation of an incomplete proof
   Proof′ : ℕ → Set
@@ -240,17 +245,22 @@ module ProofSearch
     open IsHintDB isHintDB
 
     solve : ∀ {m} → Goal m → HintDB → SearchTree Proof
-    solve {m} g = solveAcc {m} (1 , g ∷ [] , Vec.head)
+    solve {m} g = solveAcc {m} "[FIRST]" (1 , g ∷ [] , Vec.head)
       where
-        solveAcc : ∀ {m} → Proof′ m → HintDB → SearchTree Proof
-        solveAcc {m} (0     ,     [] , p) _  = leaf (p [])
-        solveAcc {m} (suc k , g ∷ gs , p) db = node (steps (getHints db))
+        solveAcc : ∀ {m} → String → Proof′ m → HintDB → SearchTree Proof
+        solveAcc {m} s (0     ,     [] , p) _  = leaf ("(leaf " ⊹⊹ (s ⊹⊹ ")\n")) (p [])
+        solveAcc {m} s (suc k , g ∷ gs , p) db = node ("(node " ⊹⊹ (s ⊹⊹ (" : " ⊹⊹ ((show g) ⊹⊹ ")\n")))) (steps (getHints db))
           where
             step : ∃[ δ ] (Hint δ) → ∞ (SearchTree Proof)
             step (δ , h) with unify (inject δ g) (raise m (conclusion (getRule h)))
-            ... | nothing        = ♯ node [] -- fail
-            ... | just (n , mgu) = ♯ solveAcc {n} prf (getTr h db)
+            ... | nothing        = ♯ node ("fail-step : " ⊹⊹ hintInfo) [] -- fail
               where
+                hintInfo : String
+                hintInfo = ((show ⦃ showHint ⦄ h) ⊹⊹ "\n")
+            ... | just (n , mgu) = ♯ solveAcc {n} ("step {" ⊹⊹ ((show n) ⊹⊹ ("} : " ⊹⊹ hintInfo))) prf (getTr h db)
+              where
+                hintInfo : String
+                hintInfo = ((show ⦃ showHint ⦄ h) ⊹⊹ "\n")
                 prf : Proof′ n
                 prf = arity (getRule h) + k , gs′ , (p ∘ con′ (getRule h))
                   where
@@ -268,14 +278,20 @@ module ProofSearch
   ----------------------------------------------------------------------------
 
   Strategy : Set₁
-  Strategy = ∀ {A} (depth : ℕ) → SearchTree A → List A
+  Strategy = ∀ {A} (depth : ℕ) → SearchTree A → String × List A
 
   dfs : Strategy
-  dfs  zero    _        = []
-  dfs (suc k) (leaf x)  = x ∷ []
-  dfs (suc k) (node xs) = concatMap (λ x → dfs k (♭ x)) xs
+  dfs  zero    _        = "[End path]\n" , []
+  dfs (suc k) (leaf s₁ x)  = s₁ , (x ∷ [])
+  dfs (suc k) (node s₁ xs) = foldr (λ t p →
+    let (s₂ , ts₁) = p
+        (s₃ , ts₂) = dfs k (♭ t)
+    in s₂ ⊹⊹ s₃ , ts₁ ++ ts₂)
+    (s₁ , []) xs
 
+--  dfs k (♭ x)
 
+{-
   bfs : Strategy
   bfs depth t = concat (Vec.toList (bfsAcc depth t))
     where
@@ -289,5 +305,6 @@ module ProofSearch
 
       bfsAcc : ∀ {A} (depth : ℕ) → SearchTree A → Vec (List A) depth
       bfsAcc  zero   _         = []
-      bfsAcc (suc k) (leaf x)  = (x ∷ []) ∷ empty
-      bfsAcc (suc k) (node xs) = [] ∷ foldr merge empty (List.map (λ x → bfsAcc k (♭ x)) xs)
+      bfsAcc (suc k) (leaf s x)  = (x ∷ []) ∷ empty
+      bfsAcc (suc k) (node s xs) = [] ∷ foldr merge empty (List.map (λ x → bfsAcc k (♭ x)) xs)
+-}

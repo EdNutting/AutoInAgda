@@ -119,5 +119,5 @@ module Auto.Show where
   showT = show
 
   showGoal : String → Type → TC ⊤
-  showGoal msg goal = typeError (strErr (msg # "\nGoal:\n" # (show goal)) ∷ [])
+  showGoal msg goal = typeError (strErr (msg # "\n" # (show goal)) ∷ [])
   
