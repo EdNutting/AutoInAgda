@@ -1,0 +1,3 @@
+name: Auto
+depend: standard-library
+include: ./ ./Auto ./Auto/Example
