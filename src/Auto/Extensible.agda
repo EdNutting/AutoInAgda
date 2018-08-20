@@ -20,9 +20,10 @@ auto search depth db type
 ... | inj₁ msg = returnTC (quoteError msg)
 ... | inj₂ ((n , g) , args)
   with search (suc depth) (solve g (fromRules args ∙ db))
-... | (_ , [])       = returnTC (quoteError searchSpaceExhausted)
+--... | (_ , []) = reifyError (show g)
+--... | (_ , [])       = returnTC (quoteError searchSpaceExhausted)
+... | (s , [])       = reifyError (primStringAppend "Exhausted after:\n" s)
 ... | (_ , (p ∷ _)) = bindTC (reify p) (λ rp → returnTC (intros rp))
---... | (s , [])       = reifyError (primStringAppend "Exhausted after:\n" s)
 --... | (s , (p ∷ _)) = reifyError (primStringAppend "\nFound\n" (primStringAppend (show p) (primStringAppend "\nby\n" s)))
   where
     intros : Term → Term

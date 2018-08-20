@@ -37,7 +37,6 @@ module Unification
     show ⦃ showTerm ⦄ (con s ts) = primStringAppend "con " (primStringAppend (show ⦃ ShowName ⦄ s) (primStringAppend "(" (primStringAppend (show ts) ")")))
     show ⦃ showTerm ⦄ (lit l) = primStringAppend "lit " (show ⦃ ShowLit ⦄ l)
 
-
   var-inj : ∀ {n x₁ x₂} → var {n} x₁ ≡ var {n} x₂ → x₁ ≡ x₂
   var-inj refl = refl
 
@@ -148,6 +147,8 @@ module Unification
   flexFlex {suc n} x y with thick x y
   flexFlex {suc n} x y | nothing = (suc n , nil)
   flexFlex {suc n} x y | just  z = (n , snoc nil (var z) x)
+
+  open import Relation.Nullary using (¬_)
 
   mutual
     unifyAcc : ∀ {m} → (t₁ t₂ : Term m) → ∃ (Subst m) → Maybe (∃ (Subst m))

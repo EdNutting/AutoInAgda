@@ -22,6 +22,8 @@ open import Agda.Builtin.Int using (primShowInteger)
 
 module Auto.Core where
 
+  open import Relation.Nullary using (¬_)
+
   open DecTotalOrder ≤-decTotalOrder using (total)
 
   private
@@ -183,6 +185,7 @@ module Auto.Core where
   convert cv d (pi (arg (arg-info visible _) t₁) (abs _ t₂)) with convert cv d t₁ | convert cv (suc d) t₂
   ... | inj₁ msg | _        = inj₁ msg
   ... | _        | inj₁ msg = inj₁ msg
+--  ... | inj₂ (n₁ , p₁) | inj₂ (n₂ , con (name (quote ⊥)) []) = inj₁ (showMessage "Found bottom")
   ... | inj₂ (n₁ , p₁) | inj₂ (n₂ , p₂)
     with match p₁ p₂
   ... | (p₁′ , p₂′) = inj₂ (n₁ ⊔ n₂ , con impl (p₁′ ∷ p₂′ ∷ []))
